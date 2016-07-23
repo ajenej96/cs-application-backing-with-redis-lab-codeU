@@ -68,6 +68,8 @@ public class JedisIndexTest {
 	 */
 	@Test
 	public void testGetCounts() {
+		url1 = "https://en.wikipedia.org/wiki/Java_(programming_language)";
+		url2 = "https://en.wikipedia.org/wiki/Programming_language";
 		Map<String, Integer> map = index.getCounts("the");
 		assertThat(map.get(url1), is(339));
 		assertThat(map.get(url2), is(264));

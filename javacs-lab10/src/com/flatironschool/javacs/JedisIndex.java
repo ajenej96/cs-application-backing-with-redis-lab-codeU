@@ -21,7 +21,6 @@ import redis.clients.jedis.Transaction;
 public class JedisIndex {
 
 	private Jedis jedis;
-
 	/**
 	 * Constructor.
 	 * 
@@ -68,7 +67,7 @@ public class JedisIndex {
 	 */
 	public Set<String> getURLs(String term) {
         // FILL THIS IN!
-		return null;
+		return jedis.smembers(urlSetKey(term));
 	}
 
     /**
@@ -79,8 +78,21 @@ public class JedisIndex {
 	 */
 	public Map<String, Integer> getCounts(String term) {
         // FILL THIS IN!
-		return null;
+        List<String> list = new ArrayList<String>(getURLs(term));
+        Map<String, Integer> counts = new HashMap<String, Integer>();
+        for(String url: list){
+        	counts.put(url, getCount(url, term));
+        }
+
+        return counts;
 	}
+
+
+
+	public void add(String term, TermCounter tc){
+		jedis.sadd(urlSetKey(term), tc.getLabel());
+	}
+
 
     /**
 	 * Returns the number of times the given term appears at the given URL.
@@ -91,7 +103,15 @@ public class JedisIndex {
 	 */
 	public Integer getCount(String url, String term) {
         // FILL THIS IN!
-		return null;
+        return Integer.parseInt(jedis.hget(termCounterKey(url), term));
+	}
+
+	public List<Object> pushTermCounterToRedis(TermCounter tc) {
+		//jedis = JedisMaker.make();
+		jedis.rpush("TermCounters", tc.getLabel(), tc.keySet().toString());
+		List<Object> ptc = new ArrayList<Object>(jedis.lrange("TermCounters", 0, jedis.llen("TermCounters")-1));
+		//jedis.close();
+		return ptc;
 	}
 
 
@@ -103,6 +123,17 @@ public class JedisIndex {
 	 */
 	public void indexPage(String url, Elements paragraphs) {
         // FILL THIS IN!
+        // make a TermCounter and count the terms in the paragraphs
+		TermCounter tc = new TermCounter(url);
+		tc.processElements(paragraphs);
+		
+		// for each term in the TermCounter, add the TermCounter to the index
+		for (String term: tc.keySet()) {
+			add(term, tc);
+			jedis.hincrBy(termCounterKey(url), term, tc.get(term));
+	    }
+
+		//List<Object> pushedTerms = pushTermCounterToRedis(tc);
 	}
 
 	/**
@@ -156,6 +187,7 @@ public class JedisIndex {
 		return jedis.keys("URLSet:*");
 	}
 
+	
 	/**
 	 * Returns TermCounter keys for the URLS that have been indexed.
 	 * 
@@ -223,15 +255,15 @@ public class JedisIndex {
 		Jedis jedis = JedisMaker.make();
 		JedisIndex index = new JedisIndex(jedis);
 		
-		//index.deleteTermCounters();
-		//index.deleteURLSets();
-		//index.deleteAllKeys();
-		loadIndex(index);
-		
+		index.deleteTermCounters();
+		index.deleteURLSets();
+		index.deleteAllKeys();
+		//loadIndex(index);
 		Map<String, Integer> map = index.getCounts("the");
 		for (Entry<String, Integer> entry: map.entrySet()) {
 			System.out.println(entry);
 		}
+		
 	}
 
 	/**
